@@ -1,0 +1,265 @@
+---
+title: "SDG Aggregates with Extrapolated Data"
+author: "Bidisha Das"
+date: "January 29, 2019"
+output: html_document
+---
+
+getwd()
+setwd("C:/Users/bdas2/Box Sync/SDG/Regional aggregates with extrapolated data")
+##Install packages
+require(ggplot2)
+library(readstata13)
+require(dplyr)
+
+
+##Read the UN Classification
+SDG<-read.csv("C:/Users/bdas2/Box Sync/SDG/UN.csv")
+colnames(SDG)
+SDG<-SDG[,c("M49Code","ISOCode","CountryName","SDG.Regions","LDCs","LLDCs.SIDS")]
+View(SDG)
+
+##Read the FAS Dataset
+FASDataset<-read.dta13("R:/DOC/FI/FAS/FAST/Data/Clean/Latest Complete File for Analysis/CompleteLatestFAS_012419.dta")
+colnames(FASDataset)
+View(FASDataset)
+FASDataset<-
+mutate(FASDataset,iso3=replace(iso3, iso3=="ROU","ROM")) 
+
+
+##merging the datasets
+###UN with FAS
+UNwithFAS <- merge(FASDataset, SDG, by.x="iso3", by.y="ISOCode",all.x=TRUE)
+write.csv(UNwithFAS, file="UNwithFAS.csv", row.names=FALSE)
+View(UNwithFAS)
+
+
+##Read the extrapolated dataset
+extrapol<-read.dta13("ATMS_CommercialBanks_Extrapolated.dta")
+colnames(extrapol)
+extrapol<-extrapol[,c("economy","iso3","year","i_ATMs_pop_int","i_branches_A1_pop_int")]
+extrapol<-
+mutate(extrapol,iso3=replace(iso3, iso3=="ROU","ROM")) 
+View(extrapol)
+
+*unused
+#extrapol<-
+#mutate(extrapol,iso3=replace(iso3, iso3=="COD","ZAR"))
+#extrapol<-
+#mutate(extrapol,iso3=replace(iso3, iso3=="UVK","KSV")) 
+#extrapol<-
+#mutate(extrapol,iso3=replace(iso3, iso3=="PSE","WBG"))
+#extrapol<-
+#mutate(extrapol,iso3=replace(iso3, iso3=="TLS","TMP"))
+
+
+###Merged UN-FAS with extrapolated
+mergeddata <- merge(UNwithFAS, extrapol, by=c("iso3","year"),all.x=TRUE)
+write.csv(mergeddata, file="mergeddata.csv", row.names=FALSE)
+
+##Changin Aus and New Zealand
+mergeddata$UN<-""
+View(mergeddata)
+mergeddata$UN[mergeddata$SDG.Regions=="Oceania (M49) excluding Australia and New Zealand (M49)"]<-"Ocenia"
+mergeddata$UN[mergeddata$SDG.Regions=="Latin America and the Caribbean (MDG=M49)"]<-"Latin America and the Caribbean"
+mergeddata$UN[mergeddata$SDG.Regions=="Australia and New Zealand (M49)"]<-"Ocenia"
+mergeddata$UN[mergeddata$SDG.Regions=="Central Asia (M49) and Southern Asia (MDG=M49)"]<-"Central Asia and Southern Asia"
+mergeddata$UN[mergeddata$SDG.Regions=="Northern America (M49) and Europe (M49)"]<-"Northern America and Europe"
+mergeddata$UN[mergeddata$SDG.Regions=="Western Asia (M49) and Northern Africa (M49)"]<-"Western Asia and Northern Africa"
+mergeddata$UN[mergeddata$SDG.Regions=="Sub-Saharan Africa (M49)"]<-"Sub-Saharan Africa"
+mergeddata$UN[mergeddata$SDG.Regions=="Eastern Asia (M49) and South-eastern Asia (MDG=M49)"]<-"Eastern Asia and South-eastern Asia"
+
+newdata <- mergeddata[ which(mergeddata$UN==""), ]
+View(newdata)
+
+###Find the regional averages
+
+### Commercial Banks Regional
+combranchesperadultpopreg<-mergeddata%>%
+  group_by(UN,year)%>%
+  summarise(combrSDG= weighted.mean(i_branches_A1_pop_int,denom_adultpop,na.rm=TRUE))
+View(combranchesperadultpopreg)
+write.csv(combranchesperadultpopreg, file="CB_AdultPopreg.csv", row.names=FALSE)
+
+### ATMs Regional
+ATMperadultpopreg<-mergeddata %>%
+  group_by(UN,year)%>%
+  summarise(ATMperadultpopreg= weighted.mean(i_ATMs_pop_int,denom_adultpop,na.rm=TRUE))
+View(ATMperadultpopreg)
+write.csv(ATMperadultpopreg, file="ATMperadultpopreg.csv", row.names=FALSE)
+
+###LDC-Branches
+combranchesperadultpopLDC<-mergeddata %>%
+  group_by(LDCs,year)%>%
+  summarise(comadultLDC= weighted.mean(i_branches_A1_pop_int,denom_adultpop,na.rm=TRUE))
+View(combranchesperadultpopLDC)
+write.csv(combranchesperadultpopLDC, file="CB_AdultPopLDCs.csv", row.names=FALSE)
+
+###LDC-ATMS
+ATMperadultpopLDCs<-mergeddata %>%
+  group_by(LDCs,year)%>%
+  summarise(ATM= weighted.mean(i_ATMs_pop_int,denom_adultpop,na.rm=TRUE))
+View(ATMperadultpopLDCs)
+write.csv(ATMperadultpopLDCs, file="ATMAdultPopLDCs.csv", row.names=FALSE)
+
+
+##landlocked and small islands Branches
+combranchesperadultpopLndlocked<-mergeddata %>%
+  group_by(LLDCs.SIDS,year)%>%
+  summarise(comLLSI= weighted.mean(i_branches_A1_pop_int,denom_adultpop,na.rm=TRUE))
+View(combranchesperadultpopLndlocked)
+write.csv(combranchesperadultpopLndlocked, file="CcombranchesperadultpopLndlocked.csv", row.names=FALSE)
+
+##landlocked and small islands ATMS
+ATMperadultpoplandlocked<-mergeddata %>%
+  group_by(LLDCs.SIDS,year)%>%
+  summarise(ATMLLSI= weighted.mean(i_ATMs_pop_int,denom_adultpop,na.rm=TRUE))
+View(ATMperadultpoplandlocked)
+write.csv(ATMperadultpoplandlocked, file="ATMperadultpoplandlocked.csv", row.names=FALSE)
+
+##World Wide ATMs
+ATMperadultpopworld<-mergeddata %>%
+ group_by(year)%>%
+    summarise(ATMworld= weighted.mean(i_ATMs_pop_int,denom_adultpop,na.rm=TRUE))
+View(ATMperadultpopworld)
+write.csv(ATMperadultpopworld, file="ATMperadultpopworld.csv", row.names=FALSE)
+
+##World Wide Branches
+Branchesperadultpopworld<-mergeddata %>%
+ group_by(year)%>%
+    summarise(Branchesworld= weighted.mean(i_branches_A1_pop_int,denom_adultpop,na.rm=TRUE))
+View(Branchesperadultpopworld)
+write.csv(Branchesperadultpopworld, file="Branchesperadultpopworld.csv", row.names=FALSE)
+
+
+###Counting the number of countries in each region for which we have ATMdata year-wise
+
+countofcountriesATM<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(UN,year)%>%
+  summarise(NumofcountriesATM=n_distinct(economy.x))
+View(countofcountriesATM)
+
+#Countries in world which has FAS ATM data
+countofcountriesATMworld<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(year)%>%
+  summarise(NumofcountriesATMw=n_distinct(economy.x))
+View(countofcountriesATMworld)
+
+##Counting countries in LDC which has ATN FAS Data
+countofcountriesATMLDC<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(LDCs,year)%>%
+  summarise(NumofcountriesATMLDC=n_distinct(economy.x))
+View(countofcountriesATMLDC)
+
+##Counting countries in LL-SID which has ATM FAS Data
+countofcountriesATMLLSI<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(LLDCs.SIDS,year)%>%
+  summarise(NumofcountriesATMLLSO=n_distinct(economy.x))
+View(countofcountriesATMLLSI)
+
+##Counting the countries in each SDG Regions
+countofcountriesallSDG<-SDG %>%
+  group_by(SDG.Regions)%>%
+  summarise(Numofcountriesall=n_distinct(CountryName))
+View(countofcountriesallSDG)
+##Landlocked and SIDS-number fo SDg countries
+countofcountriessmallis<-SDG %>%
+  group_by(LLDCs.SIDS)%>%
+  summarise(Numofcountriesall=n_distinct(CountryName))
+View(countofcountriessmallis)
+##LDCS SDg countries
+countofSDGLDC<-SDG %>%
+  group_by(LDCs)%>%
+  summarise(Numofcountriesall=n_distinct(CountryName))
+View(countofSDGLDC)
+
+##Pop of the countries for each region in which we have ATM data after extrapolation
+popofcountriesATM<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(UN,year)%>%
+  summarise(popofconATM=sum(denom_adultpop))
+View(popofcountriesATM)
+
+
+##Pop of the countries for LDCs in which we have ATM data after extrapolation
+popofLDCATM<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(LDCs,year)%>%
+  summarise(popofcLDCATM=sum(denom_adultpop))
+View(popofLDCATM)
+
+##Pop of the countries for LL-SIDCs in which we have ATM data after extrapolation
+popofLLSIDCATM<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(LLDCs.SIDS,year)%>%
+  summarise(popofcLLSIDCATM=sum(denom_adultpop))
+View(popofLLSIDCATM)
+
+##Pop of the world in which we have ATM data after extrapolation
+popofworldATM<-mergeddata %>%
+  filter(!is.na(i_ATMs_pop_int))%>%
+  group_by(year)%>%
+  summarise(popofworldATM=sum(denom_adultpop))
+View(popofworldATM)
+
+#branches
+##Counting the number of countries in each region for branches
+countofcountriesbr<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(UN,year)%>%
+  summarise(Numofcountriesbr=n_distinct(economy.x))
+View(countofcountriesbr)
+
+#Countries in world which has FAS br data
+countofcountriesbrworld<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(year)%>%
+  summarise(Numofcountriesbrw=n_distinct(economy.x))
+View(countofcountriesbrworld)
+
+##Counting countries in LDC which has brFAS Data
+countofcountriesbrLDC<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(LDCs,year)%>%
+  summarise(NumofcountriesbrLDC=n_distinct(economy.x))
+View(countofcountriesbrLDC)
+
+##Counting countries in LL-SID which has br FAS Data
+countofcountriesbrLLSI<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(LLDCs.SIDS,year)%>%
+  summarise(NumofcountriesbrLLSO=n_distinct(economy.x))
+View(countofcountriesbrLLSI)
+
+##Pop of the countries for each region in which we have Br data after extrapolation
+popofcountriesbr<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(UN,year)%>%
+  summarise(popofconbr=sum(denom_adultpop))
+View(popofcountriesbr)
+
+
+##Pop of the countries for LDCs in which we have br data after extrapolation
+popofLDCbr<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(LDCs,year)%>%
+  summarise(popofcLDCbr=sum(denom_adultpop))
+View(popofLDCbr)
+
+##Pop of the countries for LL-SIDCs in which we have ATM data after extrapolation
+popofLLSIDCbr<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(LLDCs.SIDS,year)%>%
+  summarise(popofcLLSIDCbr=sum(denom_adultpop))
+View(popofLLSIDCbr)
+
+##Pop of the world in which we have ATM data after extrapolation
+popofworldbr<-mergeddata %>%
+  filter(!is.na(i_branches_A1_pop_int))%>%
+  group_by(year)%>%
+  summarise(popofworldbr=sum(denom_adultpop))
+View(popofworldbr)
